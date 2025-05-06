@@ -7,12 +7,12 @@ TITLE = "Maze Runner - Escape from AI"
 
 # Game constants
 FPS = 60
-CELL_SIZE = 48  # Increased for better detail
+CELL_SIZE = 32
 WALL_THICKNESS = 3
 
 # Maze dimensions (must be odd numbers)
-MAZE_WIDTH = 17
-MAZE_HEIGHT = 11
+MAZE_WIDTH = 25
+MAZE_HEIGHT = 17
 
 # Game timing
 MONSTER_MOVE_DELAY = 0.5
@@ -37,11 +37,11 @@ PARTICLE_COLORS = [
     (100, 255, 200),  # Mint
     (200, 255, 100),  # Light green
     (255, 100, 255),  # Pink
-    (255, 150, 50)   # Orange
+    (255, 150, 50),  # Orange
 ]
 
 # Enhanced player settings
-PLAYER_SPEED = 5
+PLAYER_SPEED = 15
 PLAYER_VISION_RADIUS = 4
 PLAYER_TRAIL_LENGTH = 5
 PLAYER_GLOW_INTENSITY = 0.8
@@ -71,6 +71,8 @@ STATE_PLAYING = 1
 STATE_GAME_OVER = 2
 STATE_WIN = 3
 STATE_PAUSED = 4
+STATE_MENU = 10
+STATE_HOW_TO_PLAY = 11
 
 # Key bindings
 MOVE_UP = pygame.K_w, pygame.K_UP
@@ -84,3 +86,8 @@ RESTART_KEY = pygame.K_r
 TRANSITION_DURATION = 0.3
 EFFECT_DURATION = 0.5
 PULSE_DURATION = 1.0
+
+# Storm settings
+STORM_MIN_INTERVAL = 8  # seconds
+STORM_MAX_INTERVAL = 15
+STORM_DURATION = 8  # seconds
