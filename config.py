@@ -19,7 +19,8 @@ MONSTER_MOVE_DELAY = 0.5
 POWERUP_DURATION = 5
 
 # Enhanced color palette
-BACKGROUND_COLOR = (8, 12, 28)  # Deeper blue for atmosphere
+CRT_BACKGROUND_COLOR = (0, 20, 0)  # CRT green background for retro effect
+BACKGROUND_COLOR = (8, 24, 8)  # Even darker green for CRT effect
 WALL_COLOR = (0, 180, 255)  # Brighter neon blue
 PATH_COLOR = (15, 20, 35)  # Darker path for contrast
 PLAYER_COLOR = (0, 255, 150)  # Vibrant cyan
@@ -41,7 +42,7 @@ PARTICLE_COLORS = [
 ]
 
 # Enhanced player settings
-PLAYER_SPEED = 15
+PLAYER_SPEED = 7
 PLAYER_VISION_RADIUS = 4
 PLAYER_TRAIL_LENGTH = 5
 PLAYER_GLOW_INTENSITY = 0.8

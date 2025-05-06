@@ -8,6 +8,7 @@ from monster import Monster
 from powerups import PowerUp, SpeedPowerUp, FreezePowerUp
 from particles import ParticleSystem
 from config import *
+import math
 
 
 class Game:
@@ -195,10 +196,18 @@ class Game:
             if int(monster.x) == int(self.player.x) and int(monster.y) == int(
                 self.player.y
             ):
-                self.game_state = STATE_GAME_OVER
-                if "lose" in self.sounds:
-                    self.sounds["lose"].play()
-                self.add_game_over_effect()
+                if self.player.health > 0:
+                    self.player.take_damage()
+                    if self.player.health == 0:
+                        self.game_state = STATE_GAME_OVER
+                        if "lose" in self.sounds:
+                            self.sounds["lose"].play()
+                        self.add_game_over_effect()
+                else:
+                    self.game_state = STATE_GAME_OVER
+                    if "lose" in self.sounds:
+                        self.sounds["lose"].play()
+                    self.add_game_over_effect()
 
         # Update power-ups and check collection
         player_pos = (int(self.player.x), int(self.player.y))
@@ -330,6 +339,54 @@ class Game:
         else:
             self.draw_maze_and_entities()
 
+        # Draw storm darkening overlay if storm is active
+        if self.storm_active:
+            overlay = pygame.Surface(
+                (self.screen_width, self.screen_height), pygame.SRCALPHA
+            )
+            overlay.fill((0, 0, 0, 255))  # Pitch black
+            # Torch effect with smooth non-linear gradient
+            torch_radius = int(2.5 * CELL_SIZE)
+            torch_soft_edge = int(1.2 * CELL_SIZE)
+            px = int(
+                self.player.x * CELL_SIZE
+                + (self.screen_width - MAZE_WIDTH * CELL_SIZE) // 2
+                + CELL_SIZE // 2
+            )
+            py = int(
+                self.player.y * CELL_SIZE
+                + (self.screen_height - MAZE_HEIGHT * CELL_SIZE) // 2
+                + CELL_SIZE // 2
+            )
+            for r in range(torch_radius + torch_soft_edge, 0, -1):
+                # Use a non-linear fade for realism (ease-in)
+                if r > torch_radius:
+                    t = (r - torch_radius) / torch_soft_edge
+                    alpha = int(255 * (t**2))  # quadratic fade
+                else:
+                    alpha = 0
+                pygame.draw.circle(overlay, (0, 0, 0, alpha), (px, py), r)
+            self.screen.blit(overlay, (0, 0))
+
+            # CRT grain and scanlines effect
+            crt_overlay = pygame.Surface(
+                (self.screen_width, self.screen_height), pygame.SRCALPHA
+            )
+            # Scanlines
+            for y in range(0, self.screen_height, 3):
+                pygame.draw.line(
+                    crt_overlay, (0, 40, 0, 32), (0, y), (self.screen_width, y)
+                )
+            # Grain/noise
+            import random
+
+            for _ in range(self.screen_width * self.screen_height // 80):
+                x = random.randint(0, self.screen_width - 1)
+                y = random.randint(0, self.screen_height - 1)
+                g = random.randint(32, 96)
+                crt_overlay.set_at((x, y), (0, g, 0, random.randint(16, 48)))
+            self.screen.blit(crt_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+
         # Draw transition effect
         if self.transition_alpha > 0:
             overlay = pygame.Surface((self.screen_width, self.screen_height))
@@ -342,184 +399,170 @@ class Game:
         offset_x = (self.screen_width - MAZE_WIDTH * CELL_SIZE) // 2
         offset_y = (self.screen_height - MAZE_HEIGHT * CELL_SIZE) // 2
 
-        # Create fog of war surface
-        fog_surface = pygame.Surface(
-            (self.screen_width, self.screen_height), pygame.SRCALPHA
-        )
-        fog_surface.fill(FOG_COLOR)
-
-        # Draw maze with enhanced effects
+        # Draw maze walls as CRT background color (dark)
         for y in range(MAZE_HEIGHT):
             for x in range(MAZE_WIDTH):
-                rect = pygame.Rect(
-                    x * CELL_SIZE + offset_x,
-                    y * CELL_SIZE + offset_y,
-                    CELL_SIZE,
-                    CELL_SIZE,
-                )
-
                 if self.maze.grid[y][x] == 1:
-                    # Wall with glow effect
-                    glow = int(self.pulse_value * WALL_GLOW_INTENSITY * 255)
-                    color = (
-                        min(255, WALL_COLOR[0] + glow),
-                        min(255, WALL_COLOR[1] + glow),
-                        min(255, WALL_COLOR[2] + glow),
+                    rect = pygame.Rect(
+                        x * CELL_SIZE + offset_x,
+                        y * CELL_SIZE + offset_y,
+                        CELL_SIZE,
+                        CELL_SIZE,
                     )
-                    pygame.draw.rect(self.screen, color, rect)
+                    pygame.draw.rect(self.screen, CRT_BACKGROUND_COLOR, rect)
 
-                    # Add inner shadow
-                    shadow_rect = rect.inflate(-4, -4)
-                    pygame.draw.rect(
-                        self.screen,
-                        (color[0] // 2, color[1] // 2, color[2] // 2),
-                        shadow_rect,
-                    )
-                else:
-                    # Path with subtle grid
-                    pygame.draw.rect(self.screen, PATH_COLOR, rect)
-                    pygame.draw.rect(
-                        self.screen,
-                        (PATH_COLOR[0] + 10, PATH_COLOR[1] + 10, PATH_COLOR[2] + 10),
-                        rect,
-                        1,
-                    )
-
-                    # Draw exit
-                    if (x, y) == self.maze.exit_pos:
-                        exit_rect = rect.inflate(-8, -8)
-                        glow = int(self.pulse_value * 64)
-                        exit_color = (
-                            min(255, EXIT_COLOR[0] + glow),
-                            min(255, EXIT_COLOR[1] + glow),
-                            min(255, EXIT_COLOR[2] + glow),
-                        )
-                        pygame.draw.rect(
-                            self.screen, exit_color, exit_rect, border_radius=8
-                        )
-
-                        if CELL_SIZE >= 30:
-                            exit_text = self.small_font.render(
-                                "EXIT", True, (255, 255, 255)
+        # Animate grid glow
+        grid_glow = 80 + int(
+            80 * (0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.002))
+        )
+        path_color = (80, 255, 80)  # Neon green for path
+        path_thickness = 28
+        border_color = (0, 40, 0)  # Dark green border
+        border_thickness = path_thickness + 8
+        corner_radius = CELL_SIZE // 2
+        for y in range(MAZE_HEIGHT):
+            for x in range(MAZE_WIDTH):
+                if self.maze.grid[y][x] == 0:
+                    cx = x * CELL_SIZE + offset_x + CELL_SIZE // 2
+                    cy = y * CELL_SIZE + offset_y + CELL_SIZE // 2
+                    # Draw lines to all open neighbors (right and down only to avoid duplicates)
+                    for dx, dy in [(1, 0), (0, 1)]:
+                        nx, ny = x + dx, y + dy
+                        if (
+                            0 <= nx < MAZE_WIDTH
+                            and 0 <= ny < MAZE_HEIGHT
+                            and self.maze.grid[ny][nx] == 0
+                        ):
+                            ncx = nx * CELL_SIZE + offset_x + CELL_SIZE // 2
+                            ncy = ny * CELL_SIZE + offset_y + CELL_SIZE // 2
+                            # Draw border first
+                            pygame.draw.line(
+                                self.screen,
+                                border_color,
+                                (cx, cy),
+                                (ncx, ncy),
+                                border_thickness,
                             )
-                            text_rect = exit_text.get_rect(center=rect.center)
-                            self.screen.blit(exit_text, text_rect)
-
-        # Draw power-ups with enhanced effects
+                            # Draw path on top
+                            pygame.draw.line(
+                                self.screen,
+                                path_color,
+                                (cx, cy),
+                                (ncx, ncy),
+                                path_thickness,
+                            )
+                    # Draw rounded corners (arc) if both right and down are open
+                    if (
+                        x + 1 < MAZE_WIDTH
+                        and y + 1 < MAZE_HEIGHT
+                        and self.maze.grid[y][x + 1] == 0
+                        and self.maze.grid[y + 1][x] == 0
+                        and self.maze.grid[y + 1][x + 1] == 0
+                    ):
+                        rect = pygame.Rect(cx, cy, corner_radius * 2, corner_radius * 2)
+                        # Border arc
+                        pygame.draw.arc(
+                            self.screen,
+                            border_color,
+                            rect,
+                            math.pi,
+                            1.5 * math.pi,
+                            border_thickness,
+                        )
+                        # Path arc
+                        pygame.draw.arc(
+                            self.screen,
+                            path_color,
+                            rect,
+                            math.pi,
+                            1.5 * math.pi,
+                            path_thickness,
+                        )
+        # Draw exit as animated glowing portal
+        ex, ey = self.maze.exit_pos
+        exit_cx = ex * CELL_SIZE + offset_x + CELL_SIZE // 2
+        exit_cy = ey * CELL_SIZE + offset_y + CELL_SIZE // 2
+        portal_radius = 22
+        pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.005)
+        # Outer glow
+        for i in range(6, 0, -1):
+            alpha = int(max(0, min(255, 60 * pulse * i)))
+            r = int(0)
+            g = int(max(0, min(255, 255 - i * 30)))
+            b = int(max(0, min(255, 180 + i * 10)))
+            color = (r, g, b, alpha)
+            surf = pygame.Surface(
+                (portal_radius * 2 + 16, portal_radius * 2 + 16), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                surf,
+                color,
+                (portal_radius + 8, portal_radius + 8),
+                portal_radius + i * 2,
+            )
+            self.screen.blit(
+                surf,
+                (exit_cx - portal_radius - 8, exit_cy - portal_radius - 8),
+                special_flags=pygame.BLEND_RGBA_ADD,
+            )
+        # Main portal ring
+        pygame.draw.circle(
+            self.screen, (0, 255, 180), (exit_cx, exit_cy), portal_radius, 4
+        )
+        # Bright center
+        pygame.draw.circle(self.screen, (180, 255, 255), (exit_cx, exit_cy), 12)
+        # Animated sparkles
+        for i in range(8):
+            angle = math.radians(i * 45 + (pygame.time.get_ticks() * 0.1) % 360)
+            sx = int(exit_cx + math.cos(angle) * (portal_radius - 4))
+            sy = int(exit_cy + math.sin(angle) * (portal_radius - 4))
+            pygame.draw.circle(self.screen, (255, 255, 255), (sx, sy), 2)
+        # Draw powerups on top of maze
         for powerup in self.powerups:
             powerup.draw(self.screen, offset_x, offset_y)
 
-        # Draw particle systems
+        # Draw monsters and player as before
         for system in self.particle_systems:
             system.draw(self.screen)
-
-        # Draw monsters with enhanced effects
         for monster in self.monsters:
             monster.draw(self.screen, offset_x, offset_y)
-
-        # Draw player with enhanced effects
         self.player.draw(self.screen, offset_x, offset_y)
 
-        # --- Flashlight fog of war ---
-        player_screen_x = int(self.player.x * CELL_SIZE + CELL_SIZE // 2) + offset_x
-        player_screen_y = int(self.player.y * CELL_SIZE + CELL_SIZE // 2) + offset_y
-        fog_surface = pygame.Surface(
-            (self.screen_width, self.screen_height), pygame.SRCALPHA
-        )
-        if self.storm_active:
-            # Pitch black everywhere except a torch radius around the player, with soft edge and flicker
-            fog_surface.fill((0, 0, 0, 255))
-            torch_radius = int(CELL_SIZE * 3.5)
-            flicker = random.randint(-8, 8)
-            gradient_radius = torch_radius + flicker
-
-            # Create a white radial gradient for the torch
-            flashlight_surface = pygame.Surface(
-                (gradient_radius * 2, gradient_radius * 2), pygame.SRCALPHA
-            )
-            for r in range(gradient_radius, 0, -1):
-                alpha = int(255 * (1 - r / gradient_radius) ** 2)
-                pygame.draw.circle(
-                    flashlight_surface,
-                    (255, 255, 255, alpha),
-                    (gradient_radius, gradient_radius),
-                    r,
-                )
-            # The center is fully white, edge fades to transparent
-
-            # Subtract the gradient from the black fog to make a visible torch
-            fog_surface.blit(
-                flashlight_surface,
-                (player_screen_x - gradient_radius, player_screen_y - gradient_radius),
-                special_flags=pygame.BLEND_RGBA_SUB,
-            )
-
-            # Add subtle noise overlay
-            noise = pygame.Surface(
-                (self.screen_width, self.screen_height), pygame.SRCALPHA
-            )
-            for _ in range(300):
-                x = random.randint(0, self.screen_width - 1)
-                y = random.randint(0, self.screen_height - 1)
-                a = random.randint(10, 30)
-                pygame.draw.circle(noise, (0, 0, 0, a), (x, y), 1)
-            fog_surface.blit(noise, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-
-            self.screen.blit(fog_surface, (0, 0))
-        else:
-            # Normal flashlight effect
-            visibility_radius = int(PLAYER_VISION_RADIUS * CELL_SIZE)
-            flashlight_strength = 255
-            fog_surface.fill((0, 0, 0, 0))
-            for r in range(visibility_radius, 0, -1):
-                alpha = int(flashlight_strength * (r / visibility_radius))
-                pygame.draw.circle(
-                    fog_surface, (0, 0, 0, alpha), (player_screen_x, player_screen_y), r
-                )
-            # Subtle noise/texture overlay to maze at all times
-            noise = pygame.Surface(
-                (self.screen_width, self.screen_height), pygame.SRCALPHA
-            )
-            for _ in range(200):
-                x = random.randint(0, self.screen_width - 1)
-                y = random.randint(0, self.screen_height - 1)
-                a = random.randint(5, 15)
-                pygame.draw.circle(noise, (0, 0, 0, a), (x, y), 1)
-            fog_surface.blit(noise, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-            self.screen.blit(fog_surface, (0, 0), special_flags=pygame.BLEND_RGBA_SUB)
-
-        # Draw UI
-        # Fog/mist particles and screen shake if monster is near
-        shake_x = shake_y = 0
-        min_dist = (
-            min(
-                ((monster.x - self.player.x) ** 2 + (monster.y - self.player.y) ** 2)
-                ** 0.5
-                for monster in self.monsters
-            )
-            if self.monsters
-            else 99
-        )
-        if min_dist < 5:
-            # import random
-
-            shake_x = random.randint(-6, 6)
-            shake_y = random.randint(-6, 6)
-            # Draw fog/mist particles
-            mist_surface = pygame.Surface(
-                (self.screen_width, self.screen_height), pygame.SRCALPHA
-            )
-            for _ in range(30):
-                mx = random.randint(0, self.screen_width - 1)
-                my = random.randint(0, self.screen_height - 1)
-                r = random.randint(10, 30)
-                a = random.randint(10, 40)
-                pygame.draw.circle(mist_surface, (180, 180, 200, a), (mx, my), r)
-            self.screen.blit(mist_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
-        # Apply screen shake by shifting the whole screen (simulate by offsetting UI)
-        self.draw_ui(shake_x, shake_y)
+        # Draw UI (pass shake_x, shake_y)
+        self.draw_ui()
 
     def draw_ui(self, shake_x=0, shake_y=0):
+        # Draw health bar (2 hits)
+        bar_x = 20 + shake_x
+        bar_y = 10 + shake_y
+        bar_width = 80
+        bar_height = 18
+        segment_width = (bar_width - 6) // 2
+        # Draw background (lost health)
+        for i in range(2):
+            pygame.draw.rect(
+                self.screen,
+                (80, 0, 0),
+                (bar_x + i * (segment_width + 4), bar_y, segment_width, bar_height),
+                border_radius=6,
+            )
+        # Draw filled (remaining health)
+        for i in range(self.player.health):
+            pygame.draw.rect(
+                self.screen,
+                (0, 220, 60),
+                (bar_x + i * (segment_width + 4), bar_y, segment_width, bar_height),
+                border_radius=6,
+            )
+        # Draw border
+        pygame.draw.rect(
+            self.screen,
+            (255, 255, 255),
+            (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4),
+            2,
+            border_radius=8,
+        )
+
         # Draw time with shadow
         time_text = self.font.render(
             f"Time: {int(self.game_time)}", True, UI_TEXT_COLOR
@@ -576,7 +619,7 @@ class Game:
 
     def draw_title_screen(self):
         # Draw animated background
-        self.screen.fill(BACKGROUND_COLOR)
+        self.screen.fill(CRT_BACKGROUND_COLOR)
 
         # Draw particle effects
         if random.random() < 0.05:
@@ -743,7 +786,7 @@ class Game:
         self.screen.blit(continue_text, continue_rect)
 
     def draw_main_menu(self):
-        self.screen.fill((10, 10, 20))
+        self.screen.fill(CRT_BACKGROUND_COLOR)
         title = self.title_font.render("MAZE RUNNER", True, (255, 255, 255))
         self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 120))
         start = self.font.render("Press ENTER to Start", True, (200, 200, 200))
@@ -754,7 +797,7 @@ class Game:
         self.screen.blit(quit_, (self.screen_width // 2 - quit_.get_width() // 2, 350))
 
     def draw_how_to_play(self):
-        self.screen.fill((10, 10, 20))
+        self.screen.fill(CRT_BACKGROUND_COLOR)
         lines = [
             "Escape the maze before the monster catches you!",
             "Use WASD or Arrow Keys to move.",

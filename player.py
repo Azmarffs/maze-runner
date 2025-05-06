@@ -1,6 +1,16 @@
 import pygame
-from config import (CELL_SIZE, PLAYER_COLOR, PLAYER_SPEED, MOVE_UP, MOVE_DOWN, 
-                   MOVE_LEFT, MOVE_RIGHT)
+from config import (
+    CELL_SIZE,
+    PLAYER_COLOR,
+    PLAYER_SPEED,
+    MOVE_UP,
+    MOVE_DOWN,
+    MOVE_LEFT,
+    MOVE_RIGHT,
+)
+import math
+import os
+
 
 class Player:
     def __init__(self, x, y):
@@ -16,57 +26,159 @@ class Player:
         self.glow_alpha = 150
         self.pulse_counter = 0
         self.pulse_direction = 1
-        self.facing = 'right'
-        
-        # Initialize animation variables
+        self.facing = "right"
+        self.moving = False
+        self.state = "idle"  # 'idle' or 'walk'
+        self.direction = "down"  # 'up', 'down', 'left', 'right'
+        self.health = 2  # Player can take 2 hits
+
+        # Animation variables
         self.animation_frame = 0
         self.animation_timer = 0
-        self.animation_speed = 0.1  # seconds per frame
-    
+        self.animation_speed = 0.12  # seconds per frame
+
+        # Load all sprite frames
+        self.sprites = {
+            "up": {
+                "idle": [
+                    pygame.image.load(
+                        os.path.join("assets", "elf_back_idle", "elf_back_idle.png")
+                    ).convert_alpha()
+                ],
+                "walk": [
+                    pygame.image.load(
+                        os.path.join("assets", "elf_back_walk", f"elf_back_walk{i}.png")
+                    ).convert_alpha()
+                    for i in range(1, 9)
+                ],
+            },
+            "down": {
+                "idle": [
+                    pygame.image.load(
+                        os.path.join("assets", "elf_front_idle", "elf_front_idle.png")
+                    ).convert_alpha()
+                ],
+                "walk": [
+                    pygame.image.load(
+                        os.path.join(
+                            "assets", "elf_front_walk", f"elf_front_walk{i}.png"
+                        )
+                    ).convert_alpha()
+                    for i in range(1, 9)
+                ],
+            },
+            "right": {
+                "idle": [
+                    pygame.image.load(
+                        os.path.join("assets", "elf_side01_idle", "elf_side01_idle.png")
+                    ).convert_alpha()
+                ],
+                "walk": [
+                    pygame.image.load(
+                        os.path.join(
+                            "assets", "elf_side01_walk", f"elf_side01_walk{i}.png"
+                        )
+                    ).convert_alpha()
+                    for i in range(1, 9)
+                ],
+            },
+            "left": {
+                "idle": [
+                    pygame.image.load(
+                        os.path.join("assets", "elf_side02_idle", "elf_side02_idle.png")
+                    ).convert_alpha()
+                ],
+                "walk": [
+                    pygame.image.load(
+                        os.path.join(
+                            "assets", "elf_side02_walk", f"elf_side02_walk{i}.png"
+                        )
+                    ).convert_alpha()
+                    for i in range(1, 9)
+                ],
+            },
+        }
+
     def handle_event(self, event, maze):
         if event.type == pygame.KEYDOWN:
             move_speed = self.speed * 2 if self.speed_boost else self.speed
-            
-            if event.key in MOVE_UP and maze.is_valid_move(self.target_x, self.target_y - 1):
+            moved = False
+            if event.key in MOVE_UP and maze.is_valid_move(
+                self.target_x, self.target_y - 1
+            ):
                 self.target_y -= 1
-            elif event.key in MOVE_DOWN and maze.is_valid_move(self.target_x, self.target_y + 1):
+                self.facing = "up"
+                moved = True
+            elif event.key in MOVE_DOWN and maze.is_valid_move(
+                self.target_x, self.target_y + 1
+            ):
                 self.target_y += 1
-            elif event.key in MOVE_LEFT and maze.is_valid_move(self.target_x - 1, self.target_y):
+                self.facing = "down"
+                moved = True
+            elif event.key in MOVE_LEFT and maze.is_valid_move(
+                self.target_x - 1, self.target_y
+            ):
                 self.target_x -= 1
-                self.facing = 'left'
-            elif event.key in MOVE_RIGHT and maze.is_valid_move(self.target_x + 1, self.target_y):
+                self.facing = "left"
+                moved = True
+            elif event.key in MOVE_RIGHT and maze.is_valid_move(
+                self.target_x + 1, self.target_y
+            ):
                 self.target_x += 1
-                self.facing = 'right'
-    
+                self.facing = "right"
+                moved = True
+            if moved:
+                self.direction = self.facing
+
     def update(self, dt):
         dx = self.target_x - self.x
         dy = self.target_y - self.y
-        
-        move_speed = dt * self.speed * (2 if self.speed_boost else 1)
-        
-        if abs(dx) > 0.01:
-            self.x += dx * min(move_speed, 1.0)
+        interp_speed = self.speed * (2 if self.speed_boost else 1) * dt
+        dist = math.hypot(dx, dy)
+        if dist > 0.001:
+            move = min(interp_speed, dist)
+            self.x += (dx / dist) * move
+            self.y += (dy / dist) * move
+            self.moving = True
+            # Update facing based on movement direction
+            if abs(dx) > abs(dy):
+                if dx > 0:
+                    self.facing = "right"
+                    self.direction = "right"
+                elif dx < 0:
+                    self.facing = "left"
+                    self.direction = "left"
+            else:
+                if dy > 0:
+                    self.facing = "down"
+                    self.direction = "down"
+                elif dy < 0:
+                    self.facing = "up"
+                    self.direction = "up"
         else:
             self.x = self.target_x
-            
-        if abs(dy) > 0.01:
-            self.y += dy * min(move_speed, 1.0)
-        else:
             self.y = self.target_y
-        
+            self.moving = False
+
         # Update speed boost
         if self.speed_boost:
             self.speed_boost_timer -= dt
             if self.speed_boost_timer <= 0:
                 self.speed_boost = False
-        
+
         # Update animation
-        if abs(dx) > 0.01 or abs(dy) > 0.01:
+        if self.moving:
+            self.state = "walk"
             self.animation_timer += dt
+            frames = self.sprites[self.direction]["walk"]
             if self.animation_timer >= self.animation_speed:
                 self.animation_timer = 0
-                self.animation_frame = (self.animation_frame + 1) % 4
-        
+                self.animation_frame = (self.animation_frame + 1) % len(frames)
+        else:
+            self.state = "idle"
+            self.animation_frame = 0
+            self.animation_timer = 0
+
         # Update pulse effect
         self.pulse_counter += dt * 2 * self.pulse_direction
         if self.pulse_counter > 1:
@@ -75,66 +187,45 @@ class Player:
         elif self.pulse_counter < 0:
             self.pulse_counter = 0
             self.pulse_direction = 1
-    
+
     def apply_speed_boost(self, duration):
         self.speed_boost = True
         self.speed_boost_timer = duration
-    
+
     def draw(self, screen, offset_x=0, offset_y=0):
         screen_x = int(self.x * CELL_SIZE + CELL_SIZE // 2) + offset_x
         screen_y = int(self.y * CELL_SIZE + CELL_SIZE // 2) + offset_y
-        
-        # Draw glow effect
-        glow_size = self.glow_size + int(self.pulse_counter * 4)
-        glow_surf = pygame.Surface((glow_size*2, glow_size*2), pygame.SRCALPHA)
-        
-        # Set color based on speed boost
-        if self.speed_boost:
-            color = (255, 255, 0)  # Yellow for speed boost
-        else:
-            color = PLAYER_COLOR
-        
-        # Draw glowing circle with alpha
-        glow_color = (*color, self.glow_alpha)
-        pygame.draw.circle(glow_surf, glow_color, (glow_size, glow_size), glow_size)
-        screen.blit(glow_surf, (screen_x - glow_size, screen_y - glow_size))
-        
-        # Draw enhanced player character
-        player_rect = pygame.Rect(
-            screen_x - self.radius,
-            screen_y - self.radius,
-            self.radius * 2,
-            self.radius * 2
-        )
-        
-        # Draw body
-        pygame.draw.circle(screen, color, (screen_x, screen_y), self.radius)
-        
-        # Draw face details based on facing direction
-        eye_offset = 4 if self.facing == 'right' else -4
-        
-        # Draw eyes (white part)
-        eye_pos_1 = (screen_x + eye_offset, screen_y - 2)
-        pygame.draw.circle(screen, (255, 255, 255), eye_pos_1, 3)
-        
-        # Draw pupils (black part)
-        pupil_offset = 1 if self.facing == 'right' else -1
-        pupil_pos_1 = (screen_x + eye_offset + pupil_offset, screen_y - 2)
-        pygame.draw.circle(screen, (0, 0, 0), pupil_pos_1, 1)
-        
-        # Draw "helmet" or hair
-        helmet_points = [
-            (screen_x - self.radius + 2, screen_y - self.radius + 4),
-            (screen_x + self.radius - 2, screen_y - self.radius + 4),
-            (screen_x + self.radius - 2, screen_y - 2),
-            (screen_x - self.radius + 2, screen_y - 2)
-        ]
-        pygame.draw.polygon(screen, (color[0]//2, color[1]//2, color[2]//2), helmet_points)
-        
+        # Draw sprite at 1.5x size
+        frames = self.sprites[self.direction][self.state]
+        frame = frames[self.animation_frame % len(frames)]
+        scale = 1.5
+        new_size = (int(frame.get_width() * scale), int(frame.get_height() * scale))
+        frame_scaled = pygame.transform.smoothscale(frame, new_size)
+        frame_rect = frame_scaled.get_rect(center=(screen_x, screen_y))
+        screen.blit(frame_scaled, frame_rect)
+
+        # # Draw glow
+        # glow_surf = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
+        # pygame.draw.circle(
+        #     glow_surf,
+        #     (0, 255, 0, 80),
+        #     (self.radius * 2, self.radius * 2),
+        #     self.radius + 8,
+        # )
+        # screen.blit(glow_surf, (screen_x - self.radius * 2, screen_y - self.radius * 2))
+
+        # # Draw eye
+        # eye_x = int(screen_x + self.radius // 2 * math.cos(math.radians(-45)))
+        # eye_y = int(screen_y - self.radius // 2)
+        # pygame.draw.circle(screen, (0, 255, 0), (eye_x, eye_y), 3)
+
         # Draw speed lines when moving
-        if abs(self.x - self.target_x) > 0.01 or abs(self.y - self.target_y) > 0.01:
-            speed_line_offset = 15 if self.facing == 'right' else -15
-            for i in range(3):
-                start_pos = (screen_x - speed_line_offset + i*5, screen_y - 5)
-                end_pos = (screen_x - speed_line_offset + i*5, screen_y + 5)
-                pygame.draw.line(screen, color, start_pos, end_pos, 1)
+        # if abs(self.x - self.target_x) > 0.01 or abs(self.y - self.target_y) > 0.01:
+        #     speed_line_offset = 15 if self.facing == "right" else -15
+        #     for i in range(3):
+        #         start_pos = (screen_x - speed_line_offset + i * 5, screen_y - 5)
+        #         end_pos = (screen_x - speed_line_offset + i * 5, screen_y + 5)
+        #         pygame.draw.line(screen, color, start_pos, end_pos, 1)
+
+    def take_damage(self):
+        self.health = max(0, self.health - 1)
