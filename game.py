@@ -10,7 +10,6 @@ from particles import ParticleSystem
 from config import *
 import math
 
-
 class Game:
     def __init__(self, screen):
         self.screen = screen
@@ -23,15 +22,37 @@ class Game:
         self.storm_timer = 0
         self.storm_warning_timer = 0
         self.next_storm_time = random.uniform(STORM_MIN_INTERVAL, STORM_MAX_INTERVAL)
-
-        # Enhanced fonts
+        if not pygame.mixer.get_init():
+            print("Warning: Mixer not initialized")
+        if not pygame.mixer.get_init() or not pygame.mixer.get_init()[0]:
+            print("Warning: No sound device available")
+        print(f"MP3 supported: {pygame.mixer.get_init()}")
+        # Enhanced fonts with larger sizes
         pygame.font.init()
-        self.title_font = pygame.font.SysFont("Verdana", 48, bold=True)
-        self.font = pygame.font.SysFont("Verdana", 24)
-        self.small_font = pygame.font.SysFont("Verdana", 16)
+        self.title_font = pygame.font.SysFont("Verdana", 92, bold=True)
+        self.menu_font = pygame.font.SysFont("Verdana", 42)
+        self.font = pygame.font.SysFont("Verdana", 32)
+        self.small_font = pygame.font.SysFont("Verdana", 24)
+
+        # Menu options and animations
+        self.menu_options = ["Start Game", "How to Play", "Exit"]
+        self.selected_option = 0
+        self.menu_animations = {
+            'title_offset': 0,
+            'title_glow': 0,
+            'option_scales': [1.0] * len(self.menu_options),
+            'background_offset': 0,
+            'particle_timer': 0
+        }
+
+        # Initialize sound system first
+        pygame.mixer.init(44100, -16, 2, 2048)
+        self.init_sounds()
 
         # Initialize particle systems
         self.particle_systems = []
+        self.menu_particles = []
+        self.init_menu_particles()
 
         # Initialize visual effects
         self.transition_alpha = 0
@@ -40,8 +61,138 @@ class Game:
         self.pulse_direction = 1
 
         # Initialize game elements
-        self.init_sounds()
         self.new_game()
+
+        # Maze background for menu
+        self.menu_maze_lines = self.generate_menu_maze_lines()
+
+    def init_menu_particles(self):
+        self.menu_particles = []
+        for _ in range(40):
+            self.menu_particles.append({
+                'x': random.randint(0, self.screen_width),
+                'y': random.randint(0, self.screen_height),
+                'speed': random.uniform(30, 80),
+                'size': random.uniform(2, 6),
+                'color': random.choice(PARTICLE_COLORS),
+                'alpha': random.randint(50, 200),
+                'direction': random.uniform(-0.5, 0.5)
+            })
+
+    def generate_menu_maze_lines(self):
+        lines = []
+        cell_size = 80
+        for x in range(0, self.screen_width + cell_size, cell_size):
+            for y in range(0, self.screen_height + cell_size, cell_size):
+                if random.random() < 0.7:
+                    lines.append({
+                        'start': (x, y),
+                        'end': (x + cell_size, y) if random.random() < 0.5 else (x, y + cell_size),
+                        'alpha': random.randint(30, 80),
+                        'width': random.randint(1, 3)
+                    })
+        return lines
+
+    def draw_main_menu(self):
+        # Fill background with dark color
+        self.screen.fill((0, 10, 0))  # Darker green for more atmosphere
+
+        # Draw animated maze lines in background
+        for line in self.menu_maze_lines:
+            color = (0, line['alpha'], 0)
+            pygame.draw.line(self.screen, color, line['start'], line['end'], line['width'])
+
+        # Update and draw particles
+        current_time = time.time()
+        for particle in self.menu_particles:
+            # Update position with smooth wave motion
+            particle['x'] += math.sin(current_time + particle['y'] * 0.01) * particle['direction']
+            particle['y'] = (particle['y'] - particle['speed'] * 0.016) % self.screen_height
+            
+            # Draw particle with glow effect
+            glow_radius = particle['size'] * 3
+            glow_surface = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
+            pygame.draw.circle(glow_surface, (*particle['color'][:3], particle['alpha'] // 3),
+                             (glow_radius, glow_radius), glow_radius)
+            self.screen.blit(glow_surface, 
+                           (particle['x'] - glow_radius, particle['y'] - glow_radius))
+            
+            # Draw core particle
+            pygame.draw.circle(self.screen, (*particle['color'][:3], particle['alpha']),
+                             (int(particle['x']), int(particle['y'])), particle['size'])
+
+        # Animate title
+        self.menu_animations['title_glow'] = (self.menu_animations['title_glow'] + 0.02) % (2 * math.pi)
+        glow_intensity = abs(math.sin(self.menu_animations['title_glow']))
+        
+        # Draw main title with dramatic glow effect
+        title_text = "MAZE RUNNER"
+        title_shadow_color = (0, int(40 * glow_intensity), 0)
+        title_color = (0, int(200 + 55 * glow_intensity), int(100 + 155 * glow_intensity))
+        
+        # Draw multiple layers of shadow for depth
+        for offset in range(3, 0, -1):
+            title_surface = self.title_font.render(title_text, True, title_shadow_color)
+            self.screen.blit(title_surface, 
+                           (self.screen_width // 2 - title_surface.get_width() // 2 + offset,
+                            120 + offset))
+
+        # Draw main title
+        title_surface = self.title_font.render(title_text, True, title_color)
+        self.screen.blit(title_surface, 
+                        (self.screen_width // 2 - title_surface.get_width() // 2, 120))
+
+        # Draw subtitle with pulsing effect
+        subtitle_color = (0, int(150 + 105 * glow_intensity), int(200 + 55 * glow_intensity))
+        subtitle = self.menu_font.render("Escape from AI", True, subtitle_color)
+        subtitle_pos = (self.screen_width // 2 - subtitle.get_width() // 2, 220)
+        self.screen.blit(subtitle, subtitle_pos)
+
+        # Draw menu options with enhanced hover effects
+        for i, option in enumerate(self.menu_options):
+            # Update hover scale with smooth animation
+            target_scale = 1.2 if i == self.selected_option else 1.0
+            self.menu_animations['option_scales'][i] += (target_scale - self.menu_animations['option_scales'][i]) * 0.2
+
+            # Calculate colors based on selection
+            if i == self.selected_option:
+                base_color = (0, 255, 200)
+                glow_color = (0, 200, 150, 100)
+            else:
+                base_color = (0, 150, 100)
+                glow_color = (0, 100, 50, 50)
+
+            # Apply pulsing effect to selected option
+            if i == self.selected_option:
+                color_pulse = abs(math.sin(time.time() * 4)) * 55
+                base_color = tuple(min(255, c + color_pulse) for c in base_color)
+
+            # Render text with current scale
+            text = self.menu_font.render(option, True, base_color)
+            scaled_size = (int(text.get_width() * self.menu_animations['option_scales'][i]),
+                         int(text.get_height() * self.menu_animations['option_scales'][i]))
+            text = pygame.transform.smoothscale(text, scaled_size)
+
+            # Position text
+            pos_x = self.screen_width // 2 - text.get_width() // 2
+            pos_y = 350 + i * 80
+
+            # Draw glow effect
+            if i == self.selected_option:
+                glow_surf = pygame.Surface((text.get_width() + 40, text.get_height() + 20), 
+                                        pygame.SRCALPHA)
+                for size in range(20, 0, -5):
+                    pygame.draw.rect(glow_surf, (*glow_color[:3], glow_color[3] // size),
+                                   (size, size, text.get_width() + 40 - size * 2,
+                                    text.get_height() + 20 - size * 2),
+                                   border_radius=10)
+                self.screen.blit(glow_surf, (pos_x - 20, pos_y - 10))
+
+            # Draw text with shadow
+            shadow = self.menu_font.render(option, True, (0, 40, 20))
+            shadow = pygame.transform.smoothscale(shadow, scaled_size)
+            self.screen.blit(shadow, (pos_x + 2, pos_y + 2))
+            self.screen.blit(text, (pos_x, pos_y))
 
     def init_sounds(self):
         try:
@@ -50,7 +201,7 @@ class Game:
                 "move": pygame.mixer.Sound("move.wav"),
                 "powerup": pygame.mixer.Sound("powerup.wav"),
                 "win": pygame.mixer.Sound("win.wav"),
-                "lose": pygame.mixer.Sound("lose.wav"),
+                "game_over": pygame.mixer.Sound("game_over.mp3"),
             }
 
             # Set volumes
@@ -99,14 +250,23 @@ class Game:
     def handle_event(self, event):
         if self.menu_state == STATE_MENU:
             if event.type == pygame.KEYDOWN:
-                if event.key == pygame.K_RETURN:
-                    self.menu_state = STATE_TITLE
-                elif event.key == pygame.K_h:
-                    self.menu_state = STATE_HOW_TO_PLAY
-                elif event.key == pygame.K_q:
-                    pygame.quit()
-                    sys.exit()
-            return
+                # Menu navigation with arrow keys
+                if event.key in [pygame.K_UP, pygame.K_w]:
+                    self.selected_option = (self.selected_option - 1) % len(self.menu_options)
+                elif event.key in [pygame.K_DOWN, pygame.K_s]:
+                    self.selected_option = (self.selected_option + 1) % len(self.menu_options)
+                # Menu selection
+                elif event.key == pygame.K_RETURN:
+                    if self.selected_option == 0:  # Start Game
+                        self.menu_state = STATE_PLAYING  # Changed from STATE_TITLE
+                        self.game_state = STATE_PLAYING  # Add this line
+                        self.new_game()  # Add this line
+                    elif self.selected_option == 1:  # How to Play
+                        self.menu_state = STATE_HOW_TO_PLAY
+                    elif self.selected_option == 2:  # Exit
+                        pygame.quit()
+                        sys.exit()
+                return
         if self.menu_state == STATE_HOW_TO_PLAY:
             if event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE:
                 self.menu_state = STATE_MENU
@@ -132,7 +292,6 @@ class Game:
                     self.game_state = STATE_PLAYING
                 self.add_transition_effect()
                 return
-        # No player movement here!
 
     def update(self):
         current_time = pygame.time.get_ticks() / 1000.0
@@ -327,9 +486,10 @@ class Game:
         if self.menu_state == STATE_HOW_TO_PLAY:
             self.draw_how_to_play()
             return
-        if self.game_state == STATE_TITLE:
-            self.draw_title_screen()
-        elif self.game_state == STATE_GAME_OVER:
+        # Remove this condition since we don't want to show title screen
+        # if self.game_state == STATE_TITLE:
+        #     self.draw_title_screen()
+        if self.game_state == STATE_GAME_OVER:
             self.draw_game_over_screen()
         elif self.game_state == STATE_WIN:
             self.draw_win_screen()
@@ -784,17 +944,6 @@ class Game:
         self.screen.blit(pause_glow, (pause_rect.x + 2, pause_rect.y + 2))
         self.screen.blit(pause_text, pause_rect)
         self.screen.blit(continue_text, continue_rect)
-
-    def draw_main_menu(self):
-        self.screen.fill(CRT_BACKGROUND_COLOR)
-        title = self.title_font.render("MAZE RUNNER", True, (255, 255, 255))
-        self.screen.blit(title, (self.screen_width // 2 - title.get_width() // 2, 120))
-        start = self.font.render("Press ENTER to Start", True, (200, 200, 200))
-        howto = self.font.render("Press H for How to Play", True, (200, 200, 200))
-        quit_ = self.font.render("Press Q to Quit", True, (200, 200, 200))
-        self.screen.blit(start, (self.screen_width // 2 - start.get_width() // 2, 250))
-        self.screen.blit(howto, (self.screen_width // 2 - howto.get_width() // 2, 300))
-        self.screen.blit(quit_, (self.screen_width // 2 - quit_.get_width() // 2, 350))
 
     def draw_how_to_play(self):
         self.screen.fill(CRT_BACKGROUND_COLOR)
