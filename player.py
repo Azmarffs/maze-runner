@@ -11,7 +11,6 @@ from config import (
 import math
 import os
 
-
 class Player:
     def __init__(self, x, y):
         self.x = x
@@ -30,7 +29,12 @@ class Player:
         self.moving = False
         self.state = "idle"  # 'idle' or 'walk'
         self.direction = "down"  # 'up', 'down', 'left', 'right'
-        self.health = 2  # Player can take 2 hits
+        self.health = 100  # Changed to 100%
+        self.damage_per_hit = 20  # 20% damage per hit
+        self.sprite_tint = (255, 255, 255)  # Full health tint
+        self.invulnerable = False  # New: invulnerability state
+        self.invulnerable_timer = 0  # New: invulnerability duration
+        self.invulnerable_duration = 1.0  # New: 1 second invulnerability
 
         # Animation variables
         self.animation_frame = 0
@@ -131,6 +135,12 @@ class Player:
                 self.direction = self.facing
 
     def update(self, dt):
+        # Update invulnerability timer
+        if self.invulnerable:
+            self.invulnerable_timer -= dt
+            if self.invulnerable_timer <= 0:
+                self.invulnerable = False
+
         dx = self.target_x - self.x
         dy = self.target_y - self.y
         interp_speed = self.speed * (2 if self.speed_boost else 1) * dt
@@ -140,7 +150,6 @@ class Player:
             self.x += (dx / dist) * move
             self.y += (dy / dist) * move
             self.moving = True
-            # Update facing based on movement direction
             if abs(dx) > abs(dy):
                 if dx > 0:
                     self.facing = "right"
@@ -160,13 +169,11 @@ class Player:
             self.y = self.target_y
             self.moving = False
 
-        # Update speed boost
         if self.speed_boost:
             self.speed_boost_timer -= dt
             if self.speed_boost_timer <= 0:
                 self.speed_boost = False
 
-        # Update animation
         if self.moving:
             self.state = "walk"
             self.animation_timer += dt
@@ -179,7 +186,6 @@ class Player:
             self.animation_frame = 0
             self.animation_timer = 0
 
-        # Update pulse effect
         self.pulse_counter += dt * 2 * self.pulse_direction
         if self.pulse_counter > 1:
             self.pulse_counter = 1
@@ -195,37 +201,41 @@ class Player:
     def draw(self, screen, offset_x=0, offset_y=0):
         screen_x = int(self.x * CELL_SIZE + CELL_SIZE // 2) + offset_x
         screen_y = int(self.y * CELL_SIZE + CELL_SIZE // 2) + offset_y
-        # Draw sprite at 1.5x size
+        
+        # Get the current frame
         frames = self.sprites[self.direction][self.state]
         frame = frames[self.animation_frame % len(frames)]
         scale = 1.5
         new_size = (int(frame.get_width() * scale), int(frame.get_height() * scale))
         frame_scaled = pygame.transform.smoothscale(frame, new_size)
-        frame_rect = frame_scaled.get_rect(center=(screen_x, screen_y))
-        screen.blit(frame_scaled, frame_rect)
-
-        # # Draw glow
-        # glow_surf = pygame.Surface((self.radius * 4, self.radius * 4), pygame.SRCALPHA)
-        # pygame.draw.circle(
-        #     glow_surf,
-        #     (0, 255, 0, 80),
-        #     (self.radius * 2, self.radius * 2),
-        #     self.radius + 8,
-        # )
-        # screen.blit(glow_surf, (screen_x - self.radius * 2, screen_y - self.radius * 2))
-
-        # # Draw eye
-        # eye_x = int(screen_x + self.radius // 2 * math.cos(math.radians(-45)))
-        # eye_y = int(screen_y - self.radius // 2)
-        # pygame.draw.circle(screen, (0, 255, 0), (eye_x, eye_y), 3)
-
-        # Draw speed lines when moving
-        # if abs(self.x - self.target_x) > 0.01 or abs(self.y - self.target_y) > 0.01:
-        #     speed_line_offset = 15 if self.facing == "right" else -15
-        #     for i in range(3):
-        #         start_pos = (screen_x - speed_line_offset + i * 5, screen_y - 5)
-        #         end_pos = (screen_x - speed_line_offset + i * 5, screen_y + 5)
-        #         pygame.draw.line(screen, color, start_pos, end_pos, 1)
+        
+        # Create a copy for tinting
+        tinted_frame = frame_scaled.copy()
+        
+        # Calculate tint based on health
+        health_percentage = self.health / 100
+        tint_value = int(255 * health_percentage)
+        tint_surface = pygame.Surface(tinted_frame.get_size())
+        tint_surface.fill((tint_value, tint_value, tint_value))
+        
+        # Apply tint
+        tinted_frame.blit(tint_surface, (0, 0), special_flags=pygame.BLEND_MULT)
+        
+        # Flash red during invulnerability
+        if self.invulnerable:
+            flash = int(128 + 127 * math.sin(pygame.time.get_ticks() * 0.01))
+            flash_surface = pygame.Surface(tinted_frame.get_size(), pygame.SRCALPHA)
+            flash_surface.fill((255, 0, 0, flash))
+            tinted_frame.blit(flash_surface, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+        
+        # Draw the tinted frame
+        frame_rect = tinted_frame.get_rect(center=(screen_x, screen_y))
+        screen.blit(tinted_frame, frame_rect)
 
     def take_damage(self):
-        self.health = max(0, self.health - 1)
+        if self.invulnerable:
+            return False  # No damage taken if invulnerable
+        self.health = max(0, self.health - self.damage_per_hit)
+        self.invulnerable = True
+        self.invulnerable_timer = self.invulnerable_duration
+        return self.health <= 0  # Return True if player is dead

@@ -258,9 +258,9 @@ class Game:
                 # Menu selection
                 elif event.key == pygame.K_RETURN:
                     if self.selected_option == 0:  # Start Game
-                        self.menu_state = STATE_PLAYING  # Changed from STATE_TITLE
-                        self.game_state = STATE_PLAYING  # Add this line
-                        self.new_game()  # Add this line
+                        self.menu_state = STATE_PLAYING
+                        self.game_state = STATE_PLAYING
+                        self.new_game()
                     elif self.selected_option == 1:  # How to Play
                         self.menu_state = STATE_HOW_TO_PLAY
                     elif self.selected_option == 2:  # Exit
@@ -354,18 +354,18 @@ class Game:
             monster.update(dt, self.player, self.maze)
             if int(monster.x) == int(self.player.x) and int(monster.y) == int(
                 self.player.y
-            ):
+            ) and not monster.frozen:
                 if self.player.health > 0:
-                    self.player.take_damage()
-                    if self.player.health == 0:
+                    is_dead = self.player.take_damage()
+                    if is_dead:
                         self.game_state = STATE_GAME_OVER
-                        if "lose" in self.sounds:
-                            self.sounds["lose"].play()
+                        if "game_over" in self.sounds:
+                            self.sounds["game_over"].play()
                         self.add_game_over_effect()
                 else:
                     self.game_state = STATE_GAME_OVER
-                    if "lose" in self.sounds:
-                        self.sounds["lose"].play()
+                    if "game_over" in self.sounds:
+                        self.sounds["game_over"].play()
                     self.add_game_over_effect()
 
         # Update power-ups and check collection
@@ -486,9 +486,6 @@ class Game:
         if self.menu_state == STATE_HOW_TO_PLAY:
             self.draw_how_to_play()
             return
-        # Remove this condition since we don't want to show title screen
-        # if self.game_state == STATE_TITLE:
-        #     self.draw_title_screen()
         if self.game_state == STATE_GAME_OVER:
             self.draw_game_over_screen()
         elif self.game_state == STATE_WIN:
@@ -692,36 +689,87 @@ class Game:
         self.draw_ui()
 
     def draw_ui(self, shake_x=0, shake_y=0):
-        # Draw health bar (2 hits)
+        # Draw health bar with enhanced visuals
         bar_x = 20 + shake_x
         bar_y = 10 + shake_y
-        bar_width = 80
-        bar_height = 18
-        segment_width = (bar_width - 6) // 2
+        bar_width = 200
+        bar_height = 20
+
+        # Draw glow effect around the health bar
+        glow_surface = pygame.Surface((bar_width + 20, bar_height + 20), pygame.SRCALPHA)
+        for i in range(5, 0, -1):
+            alpha = int(60 * (i / 5) * (0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.002)))
+            pygame.draw.rect(glow_surface, (0, 255, 150, alpha), 
+                            (10 - i, 10 - i, bar_width + 2 * i, bar_height + 2 * i), 
+                            border_radius=10)
+        self.screen.blit(glow_surface, (bar_x - 10, bar_y - 10))
+
         # Draw background (lost health)
-        for i in range(2):
-            pygame.draw.rect(
-                self.screen,
-                (80, 0, 0),
-                (bar_x + i * (segment_width + 4), bar_y, segment_width, bar_height),
-                border_radius=6,
-            )
-        # Draw filled (remaining health)
-        for i in range(self.player.health):
-            pygame.draw.rect(
-                self.screen,
-                (0, 220, 60),
-                (bar_x + i * (segment_width + 4), bar_y, segment_width, bar_height),
-                border_radius=6,
-            )
-        # Draw border
         pygame.draw.rect(
             self.screen,
-            (255, 255, 255),
+            (40, 40, 40),  # Dark gray for contrast
+            (bar_x, bar_y, bar_width, bar_height),
+            border_radius=6,
+        )
+
+        # Create gradient fill for health
+        health_width = int((bar_width * self.player.health) / 100)
+        if health_width > 0:
+            gradient_surface = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
+            for x in range(bar_width):
+                t = x / bar_width
+                r = int(255 * t)  # Red increases as health decreases
+                g = int(255 * (1 - t))  # Green decreases as health decreases
+                pygame.draw.line(gradient_surface, (r, g, 0), (x, 0), (x, bar_height))
+            gradient_surface = gradient_surface.subsurface((0, 0, health_width, bar_height))
+            
+            # Apply pulse effect when invulnerable
+            if self.player.invulnerable:
+                pulse = 1.0 + 0.1 * math.sin(pygame.time.get_ticks() * 0.01)
+                scaled_size = (int(health_width * pulse), int(bar_height * pulse))
+                gradient_surface = pygame.transform.smoothscale(gradient_surface, scaled_size)
+                gradient_rect = gradient_surface.get_rect(center=(bar_x + health_width // 2, bar_y + bar_height // 2))
+            else:
+                gradient_rect = gradient_surface.get_rect(topleft=(bar_x, bar_y))
+            self.screen.blit(gradient_surface, gradient_rect)
+
+        # Draw damage flash effect
+        if self.player.invulnerable:
+            flash_alpha = int(100 * (self.player.invulnerable_timer / self.player.invulnerable_duration))
+            flash_surface = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
+            flash_surface.fill((255, 0, 0, flash_alpha))
+            pygame.draw.rect(flash_surface, (255, 0, 0, flash_alpha), 
+                            (0, 0, bar_width, bar_height), border_radius=6)
+            self.screen.blit(flash_surface, (bar_x, bar_y))
+
+        # Draw border with pulse effect
+        border_color = (0, 255, 150) if self.player.health > 0 else (255, 50, 50)
+        if self.player.invulnerable:
+            pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.01)
+            border_color = (
+                min(255, border_color[0] + int(50 * pulse)),
+                min(255, border_color[1] + int(50 * pulse)),
+                min(255, border_color[2] + int(50 * pulse))
+            )
+        pygame.draw.rect(
+            self.screen,
+            border_color,
             (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4),
             2,
             border_radius=8,
         )
+
+        # Draw health percentage with glow
+        health_text = self.font.render(f"{int(self.player.health)}%", True, UI_TEXT_COLOR)
+        health_glow = self.font.render(f"{int(self.player.health)}%", True, (0, 255, 150))
+        glow_surface = pygame.Surface((health_text.get_width() + 10, health_text.get_height() + 10), pygame.SRCALPHA)
+        for i in range(3, 0, -1):
+            pygame.draw.rect(glow_surface, (0, 255, 150, int(50 * (i / 3))), 
+                            (5 - i, 5 - i, health_text.get_width() + 2 * i, health_text.get_height() + 2 * i), 
+                            border_radius=4)
+        self.screen.blit(glow_surface, (bar_x + bar_width + 5, bar_y - 5))
+        self.screen.blit(health_glow, (bar_x + bar_width + 10, bar_y))
+        self.screen.blit(health_text, (bar_x + bar_width + 10, bar_y))
 
         # Draw time with shadow
         time_text = self.font.render(
@@ -888,7 +936,7 @@ class Game:
         win_glow = self.title_font.render(
             "YOU ESCAPED!",
             True,
-            (min(255, 50 + glow), min(255, 255 + glow), min(255, 50 + glow)),
+            (min(255, 50 + gray), min(255, 255 + glow), min(255, 50 + glow)),
         )
 
         time_text = self.font.render(
