@@ -603,54 +603,55 @@ class Game:
             self.draw_pause_overlay()
         else:
             self.draw_maze_and_entities()
-
-        # Draw storm darkening overlay if storm is active
-        if self.storm_active:
-            overlay = pygame.Surface(
-                (self.screen_width, self.screen_height), pygame.SRCALPHA
-            )
-            overlay.fill((0, 0, 0, 255))  # Pitch black
-            # Torch effect with smooth non-linear gradient
-            torch_radius = int(2.5 * CELL_SIZE)
-            torch_soft_edge = int(1.2 * CELL_SIZE)
-            px = int(
-                self.player.x * CELL_SIZE
-                + (self.screen_width - MAZE_WIDTH * CELL_SIZE) // 2
-                + CELL_SIZE // 2
-            )
-            py = int(
-                self.player.y * CELL_SIZE
-                + (self.screen_height - MAZE_HEIGHT * CELL_SIZE) // 2
-                + CELL_SIZE // 2
-            )
-            for r in range(torch_radius + torch_soft_edge, 0, -1):
-                # Use a non-linear fade for realism (ease-in)
-                if r > torch_radius:
-                    t = (r - torch_radius) / torch_soft_edge
-                    alpha = int(255 * (t**2))  # quadratic fade
-                else:
-                    alpha = 0
-                pygame.draw.circle(overlay, (0, 0, 0, alpha), (px, py), r)
-            self.screen.blit(overlay, (0, 0))
-
-            # CRT grain and scanlines effect
-            crt_overlay = pygame.Surface(
-                (self.screen_width, self.screen_height), pygame.SRCALPHA
-            )
-            # Scanlines
-            for y in range(0, self.screen_height, 3):
-                pygame.draw.line(
-                    crt_overlay, (0, 40, 0, 32), (0, y), (self.screen_width, y)
+            # Draw storm darkening overlay if storm is active and only in STATE_PLAYING
+            if self.storm_active:
+                overlay = pygame.Surface(
+                    (self.screen_width, self.screen_height), pygame.SRCALPHA
                 )
-            # Grain/noise
-            import random
+                overlay.fill((0, 0, 0, 255))  # Pitch black
+                # Torch effect with smooth non-linear gradient
+                torch_radius = int(2.5 * CELL_SIZE)
+                torch_soft_edge = int(1.2 * CELL_SIZE)
+                px = int(
+                    self.player.x * CELL_SIZE
+                    + (self.screen_width - MAZE_WIDTH * CELL_SIZE) // 2
+                    + CELL_SIZE // 2
+                )
+                py = int(
+                    self.player.y * CELL_SIZE
+                    + (self.screen_height - MAZE_HEIGHT * CELL_SIZE) // 2
+                    + CELL_SIZE // 2
+                )
+                for r in range(torch_radius + torch_soft_edge, 0, -1):
+                    # Use a non-linear fade for realism (ease-in)
+                    if r > torch_radius:
+                        t = (r - torch_radius) / torch_soft_edge
+                        alpha = int(255 * (t**2))  # quadratic fade
+                    else:
+                        alpha = 0
+                    pygame.draw.circle(overlay, (0, 0, 0, alpha), (px, py), r)
+                self.screen.blit(overlay, (0, 0))
 
-            for _ in range(self.screen_width * self.screen_height // 80):
-                x = random.randint(0, self.screen_width - 1)
-                y = random.randint(0, self.screen_height - 1)
-                g = random.randint(32, 96)
-                crt_overlay.set_at((x, y), (0, g, 0, random.randint(16, 48)))
-            self.screen.blit(crt_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD)
+                # CRT grain and scanlines effect
+                crt_overlay = pygame.Surface(
+                    (self.screen_width, self.screen_height), pygame.SRCALPHA
+                )
+                # Scanlines
+                for y in range(0, self.screen_height, 3):
+                    pygame.draw.line(
+                        crt_overlay, (0, 40, 0, 32), (0, y), (self.screen_width, y)
+                    )
+                # Grain/noise
+                import random
+
+                for _ in range(self.screen_width * self.screen_height // 80):
+                    x = random.randint(0, self.screen_width - 1)
+                    y = random.randint(0, self.screen_height - 1)
+                    g = random.randint(32, 96)
+                    crt_overlay.set_at((x, y), (0, g, 0, random.randint(16, 48)))
+                self.screen.blit(
+                    crt_overlay, (0, 0), special_flags=pygame.BLEND_RGBA_ADD
+                )
 
         # Draw transition effect
         if self.transition_alpha > 0:
