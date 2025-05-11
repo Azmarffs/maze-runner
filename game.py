@@ -10,6 +10,7 @@ from particles import ParticleSystem
 from config import *
 import math
 
+
 class Game:
     def __init__(self, screen):
         self.screen = screen
@@ -38,11 +39,11 @@ class Game:
         self.menu_options = ["Start Game", "How to Play", "Exit"]
         self.selected_option = 0
         self.menu_animations = {
-            'title_offset': 0,
-            'title_glow': 0,
-            'option_scales': [1.0] * len(self.menu_options),
-            'background_offset': 0,
-            'particle_timer': 0
+            "title_offset": 0,
+            "title_glow": 0,
+            "option_scales": [1.0] * len(self.menu_options),
+            "background_offset": 0,
+            "particle_timer": 0,
         }
 
         # Initialize sound system first
@@ -66,18 +67,26 @@ class Game:
         # Maze background for menu
         self.menu_maze_lines = self.generate_menu_maze_lines()
 
+        # Cache terminal fonts for UI
+        self.term_font = pygame.font.SysFont("Consolas", 20, bold=True)
+        self.term_font_big = pygame.font.SysFont("Consolas", 48, bold=True)
+        self.term_font_med = pygame.font.SysFont("Consolas", 32, bold=True)
+        self.term_font_small = pygame.font.SysFont("Consolas", 28, bold=True)
+
     def init_menu_particles(self):
         self.menu_particles = []
         for _ in range(40):
-            self.menu_particles.append({
-                'x': random.randint(0, self.screen_width),
-                'y': random.randint(0, self.screen_height),
-                'speed': random.uniform(30, 80),
-                'size': random.uniform(2, 6),
-                'color': random.choice(PARTICLE_COLORS),
-                'alpha': random.randint(50, 200),
-                'direction': random.uniform(-0.5, 0.5)
-            })
+            self.menu_particles.append(
+                {
+                    "x": random.randint(0, self.screen_width),
+                    "y": random.randint(0, self.screen_height),
+                    "speed": random.uniform(30, 80),
+                    "size": random.uniform(2, 6),
+                    "color": random.choice(PARTICLE_COLORS),
+                    "alpha": random.randint(50, 200),
+                    "direction": random.uniform(-0.5, 0.5),
+                }
+            )
 
     def generate_menu_maze_lines(self):
         lines = []
@@ -85,12 +94,18 @@ class Game:
         for x in range(0, self.screen_width + cell_size, cell_size):
             for y in range(0, self.screen_height + cell_size, cell_size):
                 if random.random() < 0.7:
-                    lines.append({
-                        'start': (x, y),
-                        'end': (x + cell_size, y) if random.random() < 0.5 else (x, y + cell_size),
-                        'alpha': random.randint(30, 80),
-                        'width': random.randint(1, 3)
-                    })
+                    lines.append(
+                        {
+                            "start": (x, y),
+                            "end": (
+                                (x + cell_size, y)
+                                if random.random() < 0.5
+                                else (x, y + cell_size)
+                            ),
+                            "alpha": random.randint(30, 80),
+                            "width": random.randint(1, 3),
+                        }
+                    )
         return lines
 
     def draw_main_menu(self):
@@ -99,51 +114,84 @@ class Game:
 
         # Draw animated maze lines in background
         for line in self.menu_maze_lines:
-            color = (0, line['alpha'], 0)
-            pygame.draw.line(self.screen, color, line['start'], line['end'], line['width'])
+            color = (0, line["alpha"], 0)
+            pygame.draw.line(
+                self.screen, color, line["start"], line["end"], line["width"]
+            )
 
         # Update and draw particles
         current_time = time.time()
         for particle in self.menu_particles:
             # Update position with smooth wave motion
-            particle['x'] += math.sin(current_time + particle['y'] * 0.01) * particle['direction']
-            particle['y'] = (particle['y'] - particle['speed'] * 0.016) % self.screen_height
-            
+            particle["x"] += (
+                math.sin(current_time + particle["y"] * 0.01) * particle["direction"]
+            )
+            particle["y"] = (
+                particle["y"] - particle["speed"] * 0.016
+            ) % self.screen_height
+
             # Draw particle with glow effect
-            glow_radius = particle['size'] * 3
-            glow_surface = pygame.Surface((glow_radius * 2, glow_radius * 2), pygame.SRCALPHA)
-            pygame.draw.circle(glow_surface, (*particle['color'][:3], particle['alpha'] // 3),
-                             (glow_radius, glow_radius), glow_radius)
-            self.screen.blit(glow_surface, 
-                           (particle['x'] - glow_radius, particle['y'] - glow_radius))
-            
+            glow_radius = particle["size"] * 3
+            glow_surface = pygame.Surface(
+                (glow_radius * 2, glow_radius * 2), pygame.SRCALPHA
+            )
+            pygame.draw.circle(
+                glow_surface,
+                (*particle["color"][:3], particle["alpha"] // 3),
+                (glow_radius, glow_radius),
+                glow_radius,
+            )
+            self.screen.blit(
+                glow_surface, (particle["x"] - glow_radius, particle["y"] - glow_radius)
+            )
+
             # Draw core particle
-            pygame.draw.circle(self.screen, (*particle['color'][:3], particle['alpha']),
-                             (int(particle['x']), int(particle['y'])), particle['size'])
+            pygame.draw.circle(
+                self.screen,
+                (*particle["color"][:3], particle["alpha"]),
+                (int(particle["x"]), int(particle["y"])),
+                particle["size"],
+            )
 
         # Animate title
-        self.menu_animations['title_glow'] = (self.menu_animations['title_glow'] + 0.02) % (2 * math.pi)
-        glow_intensity = abs(math.sin(self.menu_animations['title_glow']))
-        
+        self.menu_animations["title_glow"] = (
+            self.menu_animations["title_glow"] + 0.02
+        ) % (2 * math.pi)
+        glow_intensity = abs(math.sin(self.menu_animations["title_glow"]))
+
         # Draw main title with dramatic glow effect
         title_text = "MAZE RUNNER"
         title_shadow_color = (0, int(40 * glow_intensity), 0)
-        title_color = (0, int(200 + 55 * glow_intensity), int(100 + 155 * glow_intensity))
-        
+        title_color = (
+            0,
+            int(200 + 55 * glow_intensity),
+            int(100 + 155 * glow_intensity),
+        )
+
         # Draw multiple layers of shadow for depth
         for offset in range(3, 0, -1):
             title_surface = self.title_font.render(title_text, True, title_shadow_color)
-            self.screen.blit(title_surface, 
-                           (self.screen_width // 2 - title_surface.get_width() // 2 + offset,
-                            120 + offset))
+            self.screen.blit(
+                title_surface,
+                (
+                    self.screen_width // 2 - title_surface.get_width() // 2 + offset,
+                    120 + offset,
+                ),
+            )
 
         # Draw main title
         title_surface = self.title_font.render(title_text, True, title_color)
-        self.screen.blit(title_surface, 
-                        (self.screen_width // 2 - title_surface.get_width() // 2, 120))
+        self.screen.blit(
+            title_surface,
+            (self.screen_width // 2 - title_surface.get_width() // 2, 120),
+        )
 
         # Draw subtitle with pulsing effect
-        subtitle_color = (0, int(150 + 105 * glow_intensity), int(200 + 55 * glow_intensity))
+        subtitle_color = (
+            0,
+            int(150 + 105 * glow_intensity),
+            int(200 + 55 * glow_intensity),
+        )
         subtitle = self.menu_font.render("Escape from AI", True, subtitle_color)
         subtitle_pos = (self.screen_width // 2 - subtitle.get_width() // 2, 220)
         self.screen.blit(subtitle, subtitle_pos)
@@ -152,7 +200,9 @@ class Game:
         for i, option in enumerate(self.menu_options):
             # Update hover scale with smooth animation
             target_scale = 1.2 if i == self.selected_option else 1.0
-            self.menu_animations['option_scales'][i] += (target_scale - self.menu_animations['option_scales'][i]) * 0.2
+            self.menu_animations["option_scales"][i] += (
+                target_scale - self.menu_animations["option_scales"][i]
+            ) * 0.2
 
             # Calculate colors based on selection
             if i == self.selected_option:
@@ -169,8 +219,10 @@ class Game:
 
             # Render text with current scale
             text = self.menu_font.render(option, True, base_color)
-            scaled_size = (int(text.get_width() * self.menu_animations['option_scales'][i]),
-                         int(text.get_height() * self.menu_animations['option_scales'][i]))
+            scaled_size = (
+                int(text.get_width() * self.menu_animations["option_scales"][i]),
+                int(text.get_height() * self.menu_animations["option_scales"][i]),
+            )
             text = pygame.transform.smoothscale(text, scaled_size)
 
             # Position text
@@ -179,13 +231,21 @@ class Game:
 
             # Draw glow effect
             if i == self.selected_option:
-                glow_surf = pygame.Surface((text.get_width() + 40, text.get_height() + 20), 
-                                        pygame.SRCALPHA)
+                glow_surf = pygame.Surface(
+                    (text.get_width() + 40, text.get_height() + 20), pygame.SRCALPHA
+                )
                 for size in range(20, 0, -5):
-                    pygame.draw.rect(glow_surf, (*glow_color[:3], glow_color[3] // size),
-                                   (size, size, text.get_width() + 40 - size * 2,
-                                    text.get_height() + 20 - size * 2),
-                                   border_radius=10)
+                    pygame.draw.rect(
+                        glow_surf,
+                        (*glow_color[:3], glow_color[3] // size),
+                        (
+                            size,
+                            size,
+                            text.get_width() + 40 - size * 2,
+                            text.get_height() + 20 - size * 2,
+                        ),
+                        border_radius=10,
+                    )
                 self.screen.blit(glow_surf, (pos_x - 20, pos_y - 10))
 
             # Draw text with shadow
@@ -252,9 +312,13 @@ class Game:
             if event.type == pygame.KEYDOWN:
                 # Menu navigation with arrow keys
                 if event.key in [pygame.K_UP, pygame.K_w]:
-                    self.selected_option = (self.selected_option - 1) % len(self.menu_options)
+                    self.selected_option = (self.selected_option - 1) % len(
+                        self.menu_options
+                    )
                 elif event.key in [pygame.K_DOWN, pygame.K_s]:
-                    self.selected_option = (self.selected_option + 1) % len(self.menu_options)
+                    self.selected_option = (self.selected_option + 1) % len(
+                        self.menu_options
+                    )
                 # Menu selection
                 elif event.key == pygame.K_RETURN:
                     if self.selected_option == 0:  # Start Game
@@ -349,13 +413,27 @@ class Game:
 
         self.player.update(dt)
 
+        # --- Shield timer update ---
+        if hasattr(self.player, "shield") and self.player.shield:
+            self.player.shield_timer -= dt
+            if self.player.shield_timer <= 0:
+                self.player.shield = False
+                self.player.shield_timer = 0
+
         # Update monsters and check collisions
         for monster in self.monsters:
             monster.update(dt, self.player, self.maze)
-            if int(monster.x) == int(self.player.x) and int(monster.y) == int(
-                self.player.y
-            ) and not monster.frozen:
-                if self.player.health > 0:
+            if (
+                int(monster.x) == int(self.player.x)
+                and int(monster.y) == int(self.player.y)
+                and not monster.frozen
+            ):
+                # --- Shield logic: if player has shield, consume it instead of health ---
+                if hasattr(self.player, "shield") and self.player.shield:
+                    self.player.shield = False
+                    self.player.shield_timer = 0
+                    self.add_powerup_effect((int(self.player.x), int(self.player.y)))
+                elif self.player.health > 0:
                     is_dead = self.player.take_damage()
                     if is_dead:
                         self.game_state = STATE_GAME_OVER
@@ -374,16 +452,18 @@ class Game:
             if (int(powerup.x), int(powerup.y)) == player_pos:
                 if isinstance(powerup, SpeedPowerUp):
                     self.player.apply_speed_boost(POWERUP_DURATION)
-                else:
-                    for monster in self.monsters:
-                        monster.freeze(POWERUP_DURATION)
+                elif isinstance(powerup, FreezePowerUp):
+                    self.player.shield = True
+                    self.player.shield_timer = 10.0
                 self.powerups.remove(powerup)
                 if "powerup" in self.sounds:
                     self.sounds["powerup"].play()
                 self.add_powerup_effect(player_pos)
 
         # Check win condition
-        if player_pos == self.maze.exit_pos:
+        ex, ey = self.maze.exit_pos
+        # Use rounding to allow for float imprecision
+        if round(self.player.x) == ex and round(self.player.y) == ey:
             self.game_state = STATE_WIN
             if "win" in self.sounds:
                 self.sounds["win"].play()
@@ -397,25 +477,25 @@ class Game:
 
         # --- Storm logic ---
         print(
-            f"[Storm Debug] storm_active={self.storm_active}, storm_warning={self.storm_warning}, next_storm_time={self.next_storm_time:.2f}, storm_timer={self.storm_timer:.2f}, storm_warning_timer={self.storm_warning_timer:.2f}"
+            # f"[Storm Debug] storm_active={self.storm_active}, storm_warning={self.storm_warning}, next_storm_time={self.next_storm_time:.2f}, storm_timer={self.storm_timer:.2f}, storm_warning_timer={self.storm_warning_timer:.2f}"
         )
         if not self.storm_active and not self.storm_warning:
             self.next_storm_time -= dt
             if self.next_storm_time <= 3:
-                print("[Storm Debug] Storm warning triggered!")
+                # print("[Storm Debug] Storm warning triggered!")
                 self.storm_warning = True
                 self.storm_warning_timer = 3
         elif self.storm_warning:
             self.storm_warning_timer -= dt
             if self.storm_warning_timer <= 0:
-                print("[Storm Debug] Storm active!")
+                # print("[Storm Debug] Storm active!")
                 self.storm_warning = False
                 self.storm_active = True
                 self.storm_timer = STORM_DURATION
         elif self.storm_active:
             self.storm_timer -= dt
             if self.storm_timer <= 0:
-                print("[Storm Debug] Storm ended!")
+                # print("[Storm Debug] Storm ended!")
                 self.storm_active = False
                 self.next_storm_time = random.uniform(
                     STORM_MIN_INTERVAL, STORM_MAX_INTERVAL
@@ -489,7 +569,35 @@ class Game:
         if self.game_state == STATE_GAME_OVER:
             self.draw_game_over_screen()
         elif self.game_state == STATE_WIN:
-            self.draw_win_screen()
+            self.draw_maze_and_entities()
+            # --- Terminal-style win message overlay ---
+            overlay = pygame.Surface(
+                (self.screen_width, self.screen_height), pygame.SRCALPHA
+            )
+            overlay.fill((0, 0, 0, 180))
+            self.screen.blit(overlay, (0, 0))
+            term_font = pygame.font.SysFont("Consolas", 48, bold=True)
+            win_text = term_font.render("YOU ESCAPED!", True, (0, 255, 80))
+            win_rect = win_text.get_rect(
+                center=(self.screen_width // 2, self.screen_height // 2 - 40)
+            )
+            self.screen.blit(win_text, win_rect)
+            time_font = pygame.font.SysFont("Consolas", 32, bold=True)
+            time_text = time_font.render(
+                f"Time: {int(self.game_time)} seconds", True, (0, 255, 80)
+            )
+            time_rect = time_text.get_rect(
+                center=(self.screen_width // 2, self.screen_height // 2 + 10)
+            )
+            self.screen.blit(time_text, time_rect)
+            prompt_font = pygame.font.SysFont("Consolas", 28, bold=True)
+            prompt_text = prompt_font.render(
+                "Press R to play again", True, (255, 255, 80)
+            )
+            prompt_rect = prompt_text.get_rect(
+                center=(self.screen_width // 2, self.screen_height // 2 + 60)
+            )
+            self.screen.blit(prompt_text, prompt_rect)
         elif self.game_state == STATE_PAUSED:
             self.draw_maze_and_entities()
             self.draw_pause_overlay()
@@ -689,140 +797,93 @@ class Game:
         self.draw_ui()
 
     def draw_ui(self, shake_x=0, shake_y=0):
-        # Draw health bar with enhanced visuals
-        bar_x = 20 + shake_x
-        bar_y = 10 + shake_y
-        bar_width = 200
-        bar_height = 20
+        # --- Console/Terminal styled health bar at bottom left ---
+        bar_width = 220
+        bar_height = 18
+        margin = 24
+        bar_x = margin + shake_x
+        bar_y = self.screen_height - bar_height - margin + shake_y
 
-        # Draw glow effect around the health bar
-        glow_surface = pygame.Surface((bar_width + 20, bar_height + 20), pygame.SRCALPHA)
-        for i in range(5, 0, -1):
-            alpha = int(60 * (i / 5) * (0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.002)))
-            pygame.draw.rect(glow_surface, (0, 255, 150, alpha), 
-                            (10 - i, 10 - i, bar_width + 2 * i, bar_height + 2 * i), 
-                            border_radius=10)
-        self.screen.blit(glow_surface, (bar_x - 10, bar_y - 10))
-
-        # Draw background (lost health)
+        # Draw background (black, like a terminal)
         pygame.draw.rect(
             self.screen,
-            (40, 40, 40),  # Dark gray for contrast
+            (8, 24, 8),
             (bar_x, bar_y, bar_width, bar_height),
-            border_radius=6,
+            border_radius=0,
         )
-
-        # Create gradient fill for health
-        health_width = int((bar_width * self.player.health) / 100)
+        # Draw health fill (single rect, green)
+        health_width = int((bar_width - 2) * self.player.health / 100)
         if health_width > 0:
-            gradient_surface = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
-            for x in range(bar_width):
-                t = x / bar_width
-                r = int(255 * t)  # Red increases as health decreases
-                g = int(255 * (1 - t))  # Green decreases as health decreases
-                pygame.draw.line(gradient_surface, (r, g, 0), (x, 0), (x, bar_height))
-            gradient_surface = gradient_surface.subsurface((0, 0, health_width, bar_height))
-            
-            # Apply pulse effect when invulnerable
-            if self.player.invulnerable:
-                pulse = 1.0 + 0.1 * math.sin(pygame.time.get_ticks() * 0.01)
-                scaled_size = (int(health_width * pulse), int(bar_height * pulse))
-                gradient_surface = pygame.transform.smoothscale(gradient_surface, scaled_size)
-                gradient_rect = gradient_surface.get_rect(center=(bar_x + health_width // 2, bar_y + bar_height // 2))
-            else:
-                gradient_rect = gradient_surface.get_rect(topleft=(bar_x, bar_y))
-            self.screen.blit(gradient_surface, gradient_rect)
-
-        # Draw damage flash effect
-        if self.player.invulnerable:
-            flash_alpha = int(100 * (self.player.invulnerable_timer / self.player.invulnerable_duration))
-            flash_surface = pygame.Surface((bar_width, bar_height), pygame.SRCALPHA)
-            flash_surface.fill((255, 0, 0, flash_alpha))
-            pygame.draw.rect(flash_surface, (255, 0, 0, flash_alpha), 
-                            (0, 0, bar_width, bar_height), border_radius=6)
-            self.screen.blit(flash_surface, (bar_x, bar_y))
-
-        # Draw border with pulse effect
-        border_color = (0, 255, 150) if self.player.health > 0 else (255, 50, 50)
-        if self.player.invulnerable:
-            pulse = 0.5 + 0.5 * math.sin(pygame.time.get_ticks() * 0.01)
-            border_color = (
-                min(255, border_color[0] + int(50 * pulse)),
-                min(255, border_color[1] + int(50 * pulse)),
-                min(255, border_color[2] + int(50 * pulse))
+            pygame.draw.rect(
+                self.screen,
+                (0, 255, 80),
+                (bar_x + 1, bar_y + 1, health_width, bar_height - 2),
+                border_radius=0,
             )
-        pygame.draw.rect(
-            self.screen,
-            border_color,
-            (bar_x - 2, bar_y - 2, bar_width + 4, bar_height + 4),
-            2,
-            border_radius=8,
-        )
 
-        # Draw health percentage with glow
-        health_text = self.font.render(f"{int(self.player.health)}%", True, UI_TEXT_COLOR)
-        health_glow = self.font.render(f"{int(self.player.health)}%", True, (0, 255, 150))
-        glow_surface = pygame.Surface((health_text.get_width() + 10, health_text.get_height() + 10), pygame.SRCALPHA)
-        for i in range(3, 0, -1):
-            pygame.draw.rect(glow_surface, (0, 255, 150, int(50 * (i / 3))), 
-                            (5 - i, 5 - i, health_text.get_width() + 2 * i, health_text.get_height() + 2 * i), 
-                            border_radius=4)
-        self.screen.blit(glow_surface, (bar_x + bar_width + 5, bar_y - 5))
-        self.screen.blit(health_glow, (bar_x + bar_width + 10, bar_y))
-        self.screen.blit(health_text, (bar_x + bar_width + 10, bar_y))
+        # Draw time as terminal text at bottom left
+        time_str = f"TIME: {int(self.game_time)}s"
+        time_text = self.term_font.render(time_str, True, (0, 255, 80))
+        self.screen.blit(time_text, (bar_x, bar_y + bar_height + 6))
 
-        # Draw time with shadow
-        time_text = self.font.render(
-            f"Time: {int(self.game_time)}", True, UI_TEXT_COLOR
-        )
-        shadow_text = self.font.render(f"Time: {int(self.game_time)}", True, (0, 0, 0))
-        self.screen.blit(shadow_text, (22 + shake_x, 22 + shake_y))
-        self.screen.blit(time_text, (20 + shake_x, 20 + shake_y))
-
-        # Draw power-up status with effects
+        # Draw power-up status as terminal text
         if self.player.speed_boost:
-            boost_text = self.font.render(
-                f"Speed Boost: {int(self.player.speed_boost_timer)}s",
-                True,
-                SPEED_POWERUP_COLOR,
-            )
-            glow = int(self.pulse_value * 64)
-            boost_color = (
-                min(255, SPEED_POWERUP_COLOR[0] + glow),
-                min(255, SPEED_POWERUP_COLOR[1] + glow),
-                min(255, SPEED_POWERUP_COLOR[2] + glow),
-            )
-            boost_glow = self.font.render(
-                f"Speed Boost: {int(self.player.speed_boost_timer)}s", True, boost_color
-            )
-            self.screen.blit(boost_glow, (22 + shake_x, 62 + shake_y))
-            self.screen.blit(boost_text, (20 + shake_x, 60 + shake_y))
+            boost_str = f"SPEED BOOST: {int(self.player.speed_boost_timer)}s"
+            boost_text = self.term_font.render(boost_str, True, (255, 255, 0))
+            self.screen.blit(boost_text, (bar_x, bar_y + bar_height + 32))
 
-        # Improved storm warning and storm active text
+        # Draw shield status as a large, clear label with timer and icon
+        if hasattr(self.player, "shield") and self.player.shield:
+            shield_bg_rect = pygame.Rect(bar_x, bar_y - 48, 220, 40)
+            pygame.draw.rect(self.screen, (8, 24, 32), shield_bg_rect, border_radius=8)
+            pygame.draw.rect(
+                self.screen, (0, 200, 255), shield_bg_rect, 2, border_radius=8
+            )
+            shield_str = f"SHIELD {int(self.player.shield_timer)}s"
+            shield_font = pygame.font.SysFont("Consolas", 28, bold=True)
+            shield_text = shield_font.render(shield_str, True, (0, 200, 255))
+            # Draw a shield icon (blue with white border)
+            shield_icon_x = bar_x + 24
+            shield_icon_y = bar_y - 28
+            pygame.draw.circle(
+                self.screen, (0, 200, 255), (shield_icon_x, shield_icon_y), 16
+            )
+            pygame.draw.circle(
+                self.screen, (255, 255, 255), (shield_icon_x, shield_icon_y), 16, 3
+            )
+            # Draw a simple shield shape overlay
+            pygame.draw.polygon(
+                self.screen,
+                (0, 120, 200),
+                [
+                    (shield_icon_x, shield_icon_y - 10),
+                    (shield_icon_x - 10, shield_icon_y),
+                    (shield_icon_x, shield_icon_y + 14),
+                    (shield_icon_x + 10, shield_icon_y),
+                ],
+            )
+            self.screen.blit(shield_text, (bar_x + 48, bar_y - 42))
+
+        # Storm warning/active as terminal text at bottom center
         if self.storm_warning:
-            big_font = pygame.font.SysFont("Verdana", 44, bold=True)
-            warning_text = big_font.render(
-                "A dark storm is coming!", True, (255, 80, 80)
-            )
-            glow = pygame.font.SysFont("Verdana", 44, bold=True).render(
-                "A dark storm is coming!", True, (255, 0, 0)
-            )
-            self.screen.blit(
-                glow, (self.screen_width // 2 - glow.get_width() // 2 + 2, 62 + 2)
-            )
+            warning_str = "A DARK STORM IS COMING!"
+            warning_text = self.term_font_small.render(warning_str, True, (255, 80, 80))
             self.screen.blit(
                 warning_text,
-                (self.screen_width // 2 - warning_text.get_width() // 2, 60),
+                (
+                    self.screen_width // 2 - warning_text.get_width() // 2,
+                    self.screen_height - 80,
+                ),
             )
         if self.storm_active:
-            big_font = pygame.font.SysFont("Verdana", 54, bold=True)
-            storm_text = big_font.render("DARK STORM!", True, (255, 255, 80))
-            glow = big_font.render("DARK STORM!", True, (255, 0, 0))
+            storm_str = "DARK STORM!"
+            storm_text = self.term_font_med.render(storm_str, True, (255, 255, 80))
             self.screen.blit(
-                glow, (self.screen_width // 2 - glow.get_width() // 2 + 3, 93 + 3)
-            )
-            self.screen.blit(
-                storm_text, (self.screen_width // 2 - storm_text.get_width() // 2, 90)
+                storm_text,
+                (
+                    self.screen_width // 2 - storm_text.get_width() // 2,
+                    self.screen_height - 48,
+                ),
             )
 
     def draw_title_screen(self):
@@ -898,66 +959,19 @@ class Game:
         overlay.fill((0, 0, 0, 200))
         self.screen.blit(overlay, (0, 0))
 
-        # Draw game over text with glow
-        game_over_text = self.title_font.render("GAME OVER", True, (255, 50, 50))
-        glow = int(self.pulse_value * 64)
-        game_over_glow = self.title_font.render(
-            "GAME OVER",
-            True,
-            (min(255, 255 + glow), min(255, 50 + glow), min(255, 50 + glow)),
-        )
-
-        restart_text = self.font.render("Press R to restart", True, UI_TEXT_COLOR)
-
-        game_over_rect = game_over_text.get_rect(
+        # Draw game over text with terminal style
+        term_font = pygame.font.SysFont("Consolas", 48, bold=True)
+        died_text = term_font.render("YOU DIED!", True, (255, 80, 80))
+        died_rect = died_text.get_rect(
             center=(self.screen_width // 2, self.screen_height // 2 - 40)
         )
-        restart_rect = restart_text.get_rect(
+        self.screen.blit(died_text, died_rect)
+        prompt_font = pygame.font.SysFont("Consolas", 28, bold=True)
+        prompt_text = prompt_font.render("Press R to restart", True, (255, 255, 80))
+        prompt_rect = prompt_text.get_rect(
             center=(self.screen_width // 2, self.screen_height // 2 + 40)
         )
-
-        self.screen.blit(game_over_glow, (game_over_rect.x + 2, game_over_rect.y + 2))
-        self.screen.blit(game_over_text, game_over_rect)
-        self.screen.blit(restart_text, restart_rect)
-
-    def draw_win_screen(self):
-        self.draw_maze_and_entities()
-
-        # Create victory overlay with particles
-        overlay = pygame.Surface(
-            (self.screen_width, self.screen_height), pygame.SRCALPHA
-        )
-        overlay.fill((0, 0, 0, 180))
-        self.screen.blit(overlay, (0, 0))
-
-        # Draw victory text with effects
-        win_text = self.title_font.render("YOU ESCAPED!", True, (50, 255, 50))
-        glow = int(self.pulse_value * 64)
-        win_glow = self.title_font.render(
-            "YOU ESCAPED!",
-            True,
-            (min(255, 50 + gray), min(255, 255 + glow), min(255, 50 + glow)),
-        )
-
-        time_text = self.font.render(
-            f"Time: {int(self.game_time)} seconds", True, UI_TEXT_COLOR
-        )
-        restart_text = self.font.render("Press R to play again", True, UI_TEXT_COLOR)
-
-        win_rect = win_text.get_rect(
-            center=(self.screen_width // 2, self.screen_height // 2 - 60)
-        )
-        time_rect = time_text.get_rect(
-            center=(self.screen_width // 2, self.screen_height // 2)
-        )
-        restart_rect = restart_text.get_rect(
-            center=(self.screen_width // 2, self.screen_height // 2 + 60)
-        )
-
-        self.screen.blit(win_glow, (win_rect.x + 2, win_rect.y + 2))
-        self.screen.blit(win_text, win_rect)
-        self.screen.blit(time_text, time_rect)
-        self.screen.blit(restart_text, restart_rect)
+        self.screen.blit(prompt_text, prompt_rect)
 
     def draw_pause_overlay(self):
         # Create pause overlay with blur effect
